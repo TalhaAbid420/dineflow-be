@@ -8,6 +8,7 @@ from agents import RunContextWrapper, function_tool
 
 from app.agent.memory import AgentContext
 from app.db import postgres
+from app import pubsub
 
 
 @function_tool
@@ -45,6 +46,11 @@ async def cancel_order(
             "cannot be cancelled."
         )
     cancelled = await postgres.update_order_status(order_id, "cancelled")
+    if cancelled and cancelled.get("user_id"):
+        await pubsub.publish(
+            str(cancelled["user_id"]), {"type": "order_status", "order": cancelled}
+        )
+    await pubsub.publish_to_chefs({"type": "order_status", "order": cancelled})
     return json.dumps(cancelled, ensure_ascii=False)
 
 

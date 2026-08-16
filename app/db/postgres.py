@@ -377,7 +377,7 @@ async def list_orders(user_id: int) -> list[dict[str, Any]]:
                ) AS items
         FROM orders o
         LEFT JOIN order_items oi ON oi.order_id = o.id
-        WHERE o.user_id = $1
+        WHERE o.user_id = $1 AND o.status <> 'cancelled'
         GROUP BY o.id
         ORDER BY o.created_at DESC
         LIMIT 25
@@ -407,6 +407,7 @@ async def list_all_orders() -> list[dict[str, Any]]:
         FROM orders o
         LEFT JOIN users u ON u.id = o.user_id
         LEFT JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.status <> 'cancelled'
         GROUP BY o.id, u.email, u.name
         ORDER BY o.created_at DESC
         LIMIT 100
