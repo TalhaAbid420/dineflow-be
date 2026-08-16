@@ -5,7 +5,7 @@ description = "Dineflow restaurant ordering agent backend (FastAPI + OpenAI Agen
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115.0",
+    "fastapi[standard]>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "openai>=1.55.0",
     "openai-agents>=0.0.9",
