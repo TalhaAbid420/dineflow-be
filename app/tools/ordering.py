@@ -14,6 +14,7 @@ from app.db import postgres
 async def place_order(
     wrapper: RunContextWrapper[AgentContext],
     items: str,
+    order_type: str = "dine_in",
     customer_name: str = "",
     delivery_address: str = "",
     phone: str = "",
@@ -23,8 +24,11 @@ async def place_order(
     Args:
         items: JSON array of ordered items, each with "name" (from the menu),
             "price" (from the menu) and "quantity" (integer).
+        order_type: "dine_in" or "delivery". Always ask the customer which they
+            want before placing the order.
         customer_name: Customer name, if provided.
-        delivery_address: Delivery address, if provided.
+        delivery_address: Delivery address — REQUIRED when order_type is
+            "delivery". Ask the customer for it before placing the order.
         phone: Contact phone number, if provided.
     """
     try:
@@ -34,10 +38,23 @@ async def place_order(
     if not parsed_items:
         return "ERROR: 'items' cannot be empty."
 
+    if order_type not in ("dine_in", "delivery"):
+        return (
+            "ERROR: 'order_type' must be either 'dine_in' or 'delivery'. "
+            "Ask the customer which they prefer before placing the order."
+        )
+    if order_type == "delivery" and not delivery_address.strip():
+        return (
+            "ERROR: delivery orders need a delivery address. Ask the customer "
+            "for their delivery address before placing the order."
+        )
+
     order_id = await postgres.create_order(
         wrapper.context.user_id,
         customer_name=customer_name,
         items=parsed_items,
+        order_type=order_type,
+        delivery_address=delivery_address.strip(),
     )
     order = await postgres.get_order(order_id)
     return json.dumps(order, ensure_ascii=False)

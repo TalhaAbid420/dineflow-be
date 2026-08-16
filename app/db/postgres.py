@@ -58,16 +58,20 @@ ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_data BYTEA;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_mime TEXT NOT NULL DEFAULT 'image/jpeg';
 
 CREATE TABLE IF NOT EXISTS orders (
-    id           SERIAL PRIMARY KEY,
-    session_id   TEXT NOT NULL,
-    user_id      INTEGER REFERENCES users(id),
-    customer_name TEXT NOT NULL DEFAULT '',
-    status       TEXT NOT NULL DEFAULT 'pending',
-    total        NUMERIC(10, 2) NOT NULL DEFAULT 0,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                SERIAL PRIMARY KEY,
+    session_id        TEXT NOT NULL,
+    user_id           INTEGER REFERENCES users(id),
+    customer_name     TEXT NOT NULL DEFAULT '',
+    order_type        TEXT NOT NULL DEFAULT 'dine_in',
+    delivery_address  TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT 'pending',
+    total             NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'dine_in';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS order_items (
     order_id     INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -262,18 +266,25 @@ def _menu_item_with_image_url(row: asyncpg.Record) -> dict[str, Any]:
 
 
 async def create_order(
-    user_id: int, customer_name: str = "", items: list[dict[str, Any]] | None = None
+    user_id: int,
+    customer_name: str = "",
+    items: list[dict[str, Any]] | None = None,
+    order_type: str = "dine_in",
+    delivery_address: str = "",
 ) -> int:
     pool = await get_pool()
     total = round(sum(float(i["price"]) * int(i["quantity"]) for i in items or []), 2)
     async with pool.acquire() as conn:
         async with conn.transaction():
             order_id = await conn.fetchval(
-                "INSERT INTO orders (session_id, user_id, customer_name, total) "
-                "VALUES ($1, $2, $3, $4) RETURNING id",
+                "INSERT INTO orders (session_id, user_id, customer_name, order_type, "
+                "delivery_address, total) "
+                "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
                 str(user_id),
                 user_id,
                 customer_name,
+                order_type,
+                delivery_address,
                 total,
             )
             for item in items or []:
@@ -322,7 +333,8 @@ async def get_order(order_id: int) -> dict[str, Any] | None:
 
 async def _fetch_order(conn: asyncpg.Connection, order_id: int) -> dict[str, Any] | None:
     order = await conn.fetchrow(
-        "SELECT id, session_id, user_id, customer_name, status, total, created_at "
+        "SELECT id, session_id, user_id, customer_name, order_type, "
+        "delivery_address, status, total, created_at "
         "FROM orders WHERE id = $1",
         order_id,
     )
@@ -351,7 +363,8 @@ async def list_orders(user_id: int) -> list[dict[str, Any]]:
     pool = await get_pool()
     rows = await pool.fetch(
         """
-        SELECT o.id, o.session_id, o.user_id, o.customer_name, o.status,
+        SELECT o.id, o.session_id, o.user_id, o.customer_name, o.order_type,
+               o.delivery_address, o.status,
                o.total, o.created_at,
                COALESCE(
                  json_agg(
@@ -379,7 +392,8 @@ async def list_all_orders() -> list[dict[str, Any]]:
     pool = await get_pool()
     rows = await pool.fetch(
         """
-        SELECT o.id, o.session_id, o.user_id, o.customer_name, o.status,
+        SELECT o.id, o.session_id, o.user_id, o.customer_name, o.order_type,
+               o.delivery_address, o.status,
                o.total, o.created_at, u.email AS user_email, u.name AS user_name,
                COALESCE(
                  json_agg(
