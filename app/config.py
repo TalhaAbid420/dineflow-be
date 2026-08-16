@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     seed_menu_on_start: bool = True
 
     # --- Auth ---
-    jwt_secret: str = "dev-secret-change-me"
+    jwt_secret: str = "dev-secret-change-me-0123456789abcdef0123456789abcdef"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
     chef_email: str = "chef@gmail.com"
